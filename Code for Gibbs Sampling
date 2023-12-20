@@ -1,0 +1,434 @@
+import numpy as np
+import math
+import random
+import pandas as pd
+
+class Gibbs_Sampling():
+    def __init__(self, n, input_samples, motif_length_1, motif_length_2, motif_guess_array_1, motif_guess_array_2, pwm_array_1, pwm_array_2, iteration_counter):
+        self.n = n
+        self.input_samples = input_samples
+        self.motif_length_1 = motif_length_1
+        self.motif_length_2 = motif_length_2
+        self.motif_guess_array_1 = motif_guess_array_1
+        self.motif_guess_array_2 = motif_guess_array_2
+        self.pwm_array_1 = pwm_array_1
+        self.pwm_array_2 = pwm_array_2
+        self.iteration_counter = iteration_counter
+
+    def motif_model():
+        '''
+        Description:
+            This function takes in the array of motifs each iteration and calculates the motif model matrix 'M' by constructing a point-weight-matrix (considering frequencies of bases at each position in the motif)
+
+        Returns
+        -------
+        pwm_array : TYPE
+        '''
+
+        A_freq_motif = 0
+        G_freq_motif = 0
+        C_freq_motif = 0
+        T_freq_motif = 0
+        for motif in motif_guess_array_1:
+            for i in range(0, motif_length_1):
+                if motif[i] == 'A':
+                    A_freq_motif += 1
+                    pwm_array_1[0][i] += 1
+                if motif[i] == 'T':
+                    T_freq_motif += 1
+                    pwm_array_1[1][i] += 1
+                if motif[i] == 'C':
+                    C_freq_motif += 1
+                    pwm_array_1[2][i] += 1
+                if motif[i] == 'G':
+                    G_freq_motif += 1
+                    pwm_array_1[3][i] += 1
+
+        # Now we will modify pwm_array a bit
+
+        # We will first sum all column elements for every column in the matrix
+
+        sum_column_array = []
+        sum_var = 0
+        for i in range(motif_length_1):
+            for j in range(0, 4):
+                sum_var += pwm_array_1[j][i]
+            sum_column_array.append(sum_var)
+            sum_var = 0
+
+        for j in range(motif_length_1):
+            for i in range(0, 4):
+                pwm_array_1[i][j] = pwm_array_1[i][j]/sum_column_array[j]
+        
+        A_freq_motif = 0
+        G_freq_motif = 0
+        C_freq_motif = 0
+        T_freq_motif = 0
+        for motif in motif_guess_array_2:
+            for i in range(0, motif_length_2):
+                if motif[i] == 'A':
+                    A_freq_motif += 1
+                    pwm_array_2[0][i] += 1
+                if motif[i] == 'T':
+                    T_freq_motif += 1
+                    pwm_array_2[1][i] += 1
+                if motif[i] == 'C':
+                    C_freq_motif += 1
+                    pwm_array_2[2][i] += 1
+                if motif[i] == 'G':
+                    G_freq_motif += 1
+                    pwm_array_2[3][i] += 1
+
+        # Now we will modify pwm_array a bit
+
+        # We will first sum all column elements for every column in the matrix
+
+        sum_column_array = []
+        sum_var = 0
+        for i in range(motif_length_2):
+            for j in range(0, 4):
+                sum_var += pwm_array_2[j][i]
+            sum_column_array.append(sum_var)
+            sum_var = 0
+
+        for j in range(motif_length_2):
+            for i in range(0, 4):
+                pwm_array_2[i][j] = pwm_array_2[i][j]/sum_column_array[j]
+
+        return (pwm_array_1,pwm_array_2)
+
+    def background_model():
+        '''
+        Description:
+            This function also takes the motif array as well as the input samples array as input and calculates the background frequencies of the bases (Background model 'B')
+
+        Returns
+        -------
+        background_arr : TYPE
+        '''
+
+        input_string_1 = ""
+        input_string_2 = ""
+        mod_input_sample_arr_1 = []
+        mod_input_sample_arr_2 = []
+        for i in range(len(motif_guess_array_1)):
+            if i == iteration_counter:  # This condition ensures that one sequence is always excluded
+                continue
+            else:
+                input_string_1 = input_samples[i]
+                input_string_2 = input_samples[i]
+                input_string_1 = input_string_1.replace(motif_guess_array_1[i], '', 1)
+                input_string_2 = input_string_2.replace(motif_guess_array_2[i], '', 1)                
+                mod_input_sample_arr_1.append(input_string_1)
+                mod_input_sample_arr_2.append(input_string_2)
+
+        # Now we will calculate background frequencies
+        A_freq_background_1 = 0
+        G_freq_background_1 = 0
+        C_freq_background_1 = 0
+        T_freq_background_1 = 0
+        A_freq_background_2 = 0
+        G_freq_background_2 = 0
+        C_freq_background_2 = 0
+        T_freq_background_2 = 0
+        for mod_input in mod_input_sample_arr_1:
+            for i in range(len(mod_input)):
+                if mod_input[i] == 'A':
+                    A_freq_background_1 += 1
+                elif mod_input[i] == 'T':
+                    T_freq_background_1 += 1
+                elif mod_input[i] == 'G':
+                    G_freq_background_1 += 1
+                else:
+                    C_freq_background_1 += 1
+        for mod_input in mod_input_sample_arr_2:
+            for i in range(len(mod_input)):
+                if mod_input[i] == 'A':
+                    A_freq_background_2 += 1
+                elif mod_input[i] == 'T':
+                    T_freq_background_2 += 1
+                elif mod_input[i] == 'G':
+                    G_freq_background_2 += 1
+                else:
+                    C_freq_background_2 += 1
+
+        sum_background_1 = A_freq_background_1+G_freq_background_1+T_freq_background_1+C_freq_background_1
+        sum_background_2 = A_freq_background_2+G_freq_background_2+T_freq_background_2+C_freq_background_2
+        background_arr_1 = [A_freq_background_1/sum_background_1, T_freq_background_1 /
+                          sum_background_1, C_freq_background_1/sum_background_1, G_freq_background_1/sum_background_1]
+        background_arr_2 = [A_freq_background_2/sum_background_2, T_freq_background_2 /
+                          sum_background_2, C_freq_background_2/sum_background_2, G_freq_background_2/sum_background_2]
+        return (background_arr_1,background_arr_2)
+
+    def compute_motif():
+        '''
+        Description:
+            This function takes the input samples array as input and computes the best possible motif in the sequence that is excluded in each iteration
+
+        Returns
+        -------
+        best_motif : TYPE
+            DESCRIPTION.
+        best_motif_score : TYPE
+        '''
+
+        remaining_seq = input_samples[iteration_counter]
+        computed_motif_1 = ""
+        log_motif_score_1 = 0.0
+        motif_score_1 = 1.0
+        computed_motif_arr_1 = []
+        motif_score_arr_1 = []
+        computed_motif_2 = ""
+        log_motif_score_2 = 0.0
+        motif_score_2 = 1.0
+        computed_motif_arr_2 = []
+        motif_score_arr_2 = []
+        for i in range(len(remaining_seq)-motif_length_1+1):
+            computed_motif_1 = remaining_seq[i:i+motif_length_1]
+            computed_motif_arr_1.append(computed_motif_1)
+            for j in range(len(computed_motif_1)):
+                if computed_motif_1[j] == 'A':
+                    motif_score_1 = motif_score_1*(pwm_array_1[0][j]/pwm_array_1[0][0])
+                elif computed_motif_1[j] == 'T':
+                    motif_score_1 = motif_score_1*(pwm_array_1[1][j]/pwm_array_1[1][0])
+                elif computed_motif_1[j] == 'C':
+                    motif_score_1 = motif_score_1*(pwm_array_1[2][j]/pwm_array_1[2][0])
+                else:
+                    motif_score_1 = motif_score_1*(pwm_array_1[3][j]/pwm_array_1[3][0])
+            log_motif_score_1 = math.log(motif_score_1)
+            motif_score_arr_1.append(log_motif_score_1)
+            motif_score_1 = 1.0
+            log_motif_score_1 = 0
+        
+        for i in range(len(remaining_seq)-motif_length_2+1):
+            computed_motif_2 = remaining_seq[i:i+motif_length_2]
+            computed_motif_arr_2.append(computed_motif_2)
+            for j in range(len(computed_motif_2)):
+                if computed_motif_2[j] == 'A':
+                    motif_score_2 = motif_score_2*(pwm_array_2[0][j]/pwm_array_2[0][0])
+                elif computed_motif_2[j] == 'T':
+                    motif_score_2 = motif_score_2*(pwm_array_2[1][j]/pwm_array_2[1][0])
+                elif computed_motif_2[j] == 'C':
+                    motif_score_2 = motif_score_2*(pwm_array_2[2][j]/pwm_array_2[2][0])
+                else:
+                    motif_score_2 = motif_score_2*(pwm_array_2[3][j]/pwm_array_2[3][0])
+            log_motif_score_2 = math.log(motif_score_2)
+            motif_score_arr_2.append(log_motif_score_2)
+            motif_score_2 = 1.0
+            log_motif_score_2 = 0
+
+        best_motif_index_1 = motif_score_arr_1.index(max(motif_score_arr_1))
+        best_motif_index_2 = motif_score_arr_2.index(max(motif_score_arr_2))
+        best_motif_1 = computed_motif_arr_1[best_motif_index_1]
+        best_motif_2 = computed_motif_arr_2[best_motif_index_2]
+        best_motif_score_1 = max(motif_score_arr_1)
+        best_motif_score_2 = max(motif_score_arr_2)
+        return (best_motif_1, best_motif_2, best_motif_score_1, best_motif_score_2)
+
+
+optimum_motif_array_1 = []
+optimum_motif_score_array_1 = []
+optimum_motif_array_2 = []
+optimum_motif_score_array_2 = []
+input_samples = []
+print("Please input the DNA sequences")
+input_seq = ""
+len_input_seq = 0
+length_of_seq_arr = []
+n = 0
+while input_seq != "Stop":
+    input_seq = input()
+    len_input_seq = len(input_seq)
+    length_of_seq_arr.append(len_input_seq)
+    input_samples.append(input_seq)
+input_samples.pop()
+length_of_seq_arr.pop()
+n = len(input_samples)
+print('Enter the length of motif 1: ')
+motif_length_1 = int(input())
+print('Enter the length of motif 2: ')
+motif_length_2 = int(input())
+
+print(input_samples)
+print(length_of_seq_arr)
+print(motif_length_1)
+print(motif_length_2)
+
+'''
+# This part is excluded from the code. This is because while generating sequences randomly does reduce the time and complexity of the user inputting the sequences to find the desired motif, it does not guarantee that each sequence will have exactly one copy of the motif that we want to find.
+
+# Let us create a random sequence generator code here
+input_samples=[]
+input_sequence=""
+random_base_int = 0
+for i in range(0,n):
+    for j in range(length_n):
+        random_base_int = random.randint(1,4)
+        if random_base_int == 1:
+            input_sequence+="A"
+        elif random_base_int == 2:
+            input_sequence+="T"
+        elif random_base_int == 3:
+            input_sequence+="G"
+        else:
+            input_sequence+="C"
+            
+    
+    input_samples.append(input_sequence)
+    input_sequence=""
+    random_base_int=0
+
+print(input_samples)
+'''
+
+
+# Initializing the pwm array
+pwm_array_1 = np.zeros([4, motif_length_1], dtype=float)
+pwm_array_2 = np.zeros([4, motif_length_2], dtype=float)
+
+# The following lines of code serve the purpose of making the first guess of motifs in the input sequences part of the input samples array (excluding the first sequence)
+
+iteration_counter = 0  # Iteration variable
+motif_guess_array_1 = []
+motif_guess_array_2 = []
+rand_num_1 = 0
+rand_num_2 = 0
+for i in range(1,n):
+    rand_num_1 = random.randint(0, length_of_seq_arr[i]-motif_length_1)
+    rand_num_2 = random.randint(0, length_of_seq_arr[i]-motif_length_2)
+    string = input_samples[i]
+    motif_guess_array_1.append(string[rand_num_1:rand_num_1+motif_length_1])
+    motif_guess_array_2.append(string[rand_num_2:rand_num_2+motif_length_2])
+print(motif_guess_array_1, "\n")  # This prints the first guess of all the motifs
+print(motif_guess_array_2, "\n")  # This prints the first guess of all the motifs
+
+
+constructor_Gibbs_sampling = Gibbs_Sampling(n, input_samples, motif_length_1, motif_length_2, motif_guess_array_1, motif_guess_array_2, pwm_array_1, pwm_array_2, iteration_counter)
+pwm_array_tup = Gibbs_Sampling.motif_model()
+pwm_array_1 = pwm_array_tup[0]
+pwm_array_2 = pwm_array_tup[1]
+background_arr_tup = Gibbs_Sampling.background_model()
+background_arr_1 = background_arr_tup[0]
+background_arr_2 = background_arr_tup[1]
+
+# Here the first column of the pwm has the background frequencies of A,T,C and G (Insertion of background array into PWM)
+pwm_array_1 = np.insert(pwm_array_1, 0, background_arr_1, axis=1)
+pwm_array_2 = np.insert(pwm_array_2, 0, background_arr_2, axis=1)
+
+# Now we will take care of pseudocounts. Whenever the frequency is zero in the matrix, we will substitute it with a very small number say 10^-8
+
+for i in range(0, 4):
+    for j in range(0, motif_length_1+1):
+        if pwm_array_1[i][j] == 0:
+            pwm_array_1[i][j] = 0.00000001
+        else:
+            continue
+for i in range(0, 4):
+    for j in range(0, motif_length_2+1):
+        if pwm_array_2[i][j] == 0:
+            pwm_array_2[i][j] = 0.00000001
+        else:
+            continue
+
+# Now we will try to find a motif in the first sequence in accordance with the created PWM
+best_motif_tup = Gibbs_Sampling.compute_motif()
+optimum_motif_1 = best_motif_tup[0]
+optimum_motif_2 = best_motif_tup[1]
+optimum_motif_score_1 = best_motif_tup[2]
+optimum_motif_score_2 = best_motif_tup[3]
+
+optimum_motif_array_1.append(optimum_motif_1)
+optimum_motif_array_2.append(optimum_motif_2)
+optimum_motif_score_array_1.append(optimum_motif_score_1)
+optimum_motif_score_array_2.append(optimum_motif_score_2)
+
+# Reinitializing variables (namely the PWM and the background array)
+pwm_array_1 = np.zeros([4, motif_length_1], dtype=float)
+pwm_array_2 = np.zeros([4, motif_length_2], dtype=float)
+background_arr_1 = []
+background_arr_2 = []
+
+
+# Iterative process of modifying the PWM and background array
+# We will now define a for loop that will iterate through all the entered sequences
+# Row 1 is A count, Row 2 is T count, Row 3 is C count, Row 4 is G count
+
+
+for iteration_counter in range(0, n-1):
+    # This is where the motif guess array is modified according to the best motif computed at each iteration in the excluded sequence
+    motif_guess_array_1 = list(map(lambda x: x.replace(
+        motif_guess_array_1[iteration_counter], optimum_motif_1), motif_guess_array_1))
+    motif_guess_array_2 = list(map(lambda x: x.replace(
+        motif_guess_array_2[iteration_counter], optimum_motif_2), motif_guess_array_2))
+    # print(motif_guess_array,"\n")
+    constructor_Gibbs_sampling = Gibbs_Sampling(n, input_samples, motif_length_1, motif_length_2, motif_guess_array_1, motif_guess_array_2, pwm_array_1, pwm_array_2, iteration_counter)
+    pwm_array_tup = Gibbs_Sampling.motif_model()
+    pwm_array_1 = pwm_array_tup[0]
+    pwm_array_2 = pwm_array_tup[1]
+    background_arr_tup = Gibbs_Sampling.background_model()
+    background_arr_1 = background_arr_tup[0]
+    background_arr_2 = background_arr_tup[1]
+
+    # Here the first column of the pwm has the background frequencies of A,T,C and G (Insertion of background array into PWM)
+    pwm_array_1 = np.insert(pwm_array_1, 0, background_arr_1, axis=1)
+    pwm_array_2 = np.insert(pwm_array_2, 0, background_arr_2, axis=1)
+
+    # Now we will take care of pseudocounts. Whenever the frequency is zero in the matrix, we will substitute it with a very small number say 10^-8
+    for i in range(0, 4):
+        for j in range(0, motif_length_1+1):
+            if pwm_array_1[i][j] == 0:
+                pwm_array_1[i][j] = 0.00000001
+            else:
+                continue
+    for i in range(0, 4):
+        for j in range(0, motif_length_2+1):
+            if pwm_array_2[i][j] == 0:
+                pwm_array_2[i][j] = 0.00000001
+            else:
+                continue
+
+    # Now we will try to find a motif in the remaining (excluded) sequence in accordance with the created PWM
+    best_motif_tup = Gibbs_Sampling.compute_motif()
+    optimum_motif_1 = best_motif_tup[0]
+    optimum_motif_2 = best_motif_tup[1]
+    optimum_motif_score_1 = best_motif_tup[2]
+    optimum_motif_score_2 = best_motif_tup[3]
+
+    optimum_motif_array_1.append(optimum_motif_1)
+    optimum_motif_array_2.append(optimum_motif_2)
+    optimum_motif_score_array_1.append(optimum_motif_score_1)
+    optimum_motif_score_array_2.append(optimum_motif_score_2)
+
+    # Reinitializing all variables
+    pwm_array_1 = np.zeros([4, motif_length_1], dtype=float)
+    pwm_array_2 = np.zeros([4, motif_length_2], dtype=float)
+    background_arr_1 = []
+    background_arr_2 = []
+
+#print("\n\n\n\n These are the motifs for each sequence: \n",optimum_motif_array,"\n These are the scores for each motif: \n",optimum_motif_score_array)
+
+
+# Validation step, to check the frequency of each motif computed in the original set of sequences along with their scores
+motif_counter_1 = 0
+motif_counter_array_1 = []
+motif_counter_2 = 0
+motif_counter_array_2 = []
+for motif in optimum_motif_array_1:
+    for sequence in input_samples:
+        if motif in sequence:
+            motif_counter_1 += 1
+    motif_counter_array_1.append(motif_counter_1)
+    motif_counter_1 = 0
+    
+for motif in optimum_motif_array_2:
+    for sequence in input_samples:
+        if motif in sequence:
+            motif_counter_2 += 1
+    motif_counter_array_2.append(motif_counter_2)
+    motif_counter_2 = 0
+
+# We will define a dataframe to print all this information
+sequence_number_array = list(range(1, n+1))
+data = {'Sequence No.': sequence_number_array, 'Sequence': input_samples, 'Length of sequence ': length_of_seq_arr, 'Identified motif 1': optimum_motif_array_1, 'Length of motif 1':motif_length_1,'Motif score 1': optimum_motif_score_array_1, 'Frequency of motif 1 in all sequences': motif_counter_array_1, 'Identified motif 2': optimum_motif_array_2,'Length of motif 2':motif_length_2,'Motif score 2': optimum_motif_score_array_2, 'Frequency of motif 2 in all sequences': motif_counter_array_2}
+df = pd.DataFrame(data)
+print(df)
